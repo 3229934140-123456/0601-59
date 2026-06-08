@@ -93,8 +93,8 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
         return
 
     overwrite_pairs = [(s, t) for s, t in rename_pairs if t.exists() and s != t]
-    if overwrite_pairs and not overwrite:
-        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=False)
+    if overwrite_pairs:
+        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=overwrite)
         confirmed_targets = {str(t) for _, t in confirmed_pairs}
     else:
         confirmed_targets = set()
@@ -255,20 +255,21 @@ def _generate_name(file_path: Path, pattern: str, theme: str, base_name: str,
 
 
 def _show_preview(rename_pairs: list, overwrite: bool):
+    overwrite_pairs = [(s, t) for s, t in rename_pairs if t.exists() and s != t]
+    overwrite_count = len(overwrite_pairs)
+
     table = Table(title=f"重命名预览 - 共 {len(rename_pairs)} 个文件")
     table.add_column("#", style="yellow", width=4)
     table.add_column("原文件名", style="cyan", overflow="fold")
     table.add_column("新文件名", style="green", overflow="fold")
     table.add_column("状态", style="white")
 
-    overwrite_count = 0
     for idx, (old_path, new_path) in enumerate(rename_pairs[:20], 1):
         status = ""
         if old_path == new_path:
             status = "名称未变"
         elif new_path.exists():
             status = "⚠ 将覆盖"
-            overwrite_count += 1
         table.add_row(
             str(idx),
             old_path.name,
@@ -282,11 +283,18 @@ def _show_preview(rename_pairs: list, overwrite: bool):
     console.print(table)
 
     if overwrite_count > 0:
-        click.echo(click.style(f"\n⚠  有 {overwrite_count} 个文件将被覆盖", fg="yellow"))
-        if not overwrite:
-            click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
+        click.echo(click.style(
+            f"\n⚠  有 {overwrite_count} 个目标文件已存在，将被覆盖：",
+            fg="yellow", bold=True
+        ))
+        display_count = min(overwrite_count, 10)
+        for i, (s, t) in enumerate(overwrite_pairs[:display_count], 1):
+            click.echo(f"  {i:2d}. {t.name}")
+        if overwrite_count > 10:
+            click.echo(f"  ... 还有 {overwrite_count - 10} 个文件将被覆盖")
+        click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
 
-    click.echo(click.style("\n预览模式 - 不会实际重命名文件", fg="yellow"))
+    click.echo(click.style("\n预览模式 - 不会实际重命名文件，磁盘文件保持不变", fg="yellow"))
 
 
 def _show_results(results: dict):

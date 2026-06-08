@@ -125,8 +125,8 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
 
     overwrite_check = [(Path("dummy"), t) for _, t, _, _, _ in output_pairs]
     overwrite_pairs = check_overwrites(overwrite_check)
-    if overwrite_pairs and not overwrite:
-        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=False)
+    if overwrite_pairs:
+        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=overwrite)
         confirmed_targets = {str(t) for _, t in confirmed_pairs}
     else:
         confirmed_targets = set()
@@ -367,13 +367,12 @@ def _show_preview(output_pairs: list, output_dir: Path, output_format: str,
                   fit: str, overwrite: bool):
     files_set = set()
     sizes_set = set()
-    overwrite_count = 0
+    overwrite_pairs = [(s, t) for s, t, _, _, _ in output_pairs if t.exists()]
+    overwrite_count = len(overwrite_pairs)
 
     for img_path, out_path, size_name, w, h in output_pairs:
         files_set.add(img_path.name)
         sizes_set.add((size_name, w, h))
-        if out_path.exists():
-            overwrite_count += 1
 
     table = Table(title=f"尺寸预览 - {len(files_set)} 张图片 × {len(sizes_set)} 种尺寸")
     table.add_column("尺寸名称", style="cyan")
@@ -390,11 +389,18 @@ def _show_preview(output_pairs: list, output_dir: Path, output_format: str,
     click.echo(f"输出目录: {output_dir}")
 
     if overwrite_count > 0:
-        click.echo(click.style(f"⚠  有 {overwrite_count} 个文件将被覆盖", fg="yellow"))
-        if not overwrite:
-            click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
+        click.echo(click.style(
+            f"\n⚠  有 {overwrite_count} 个目标文件已存在，将被覆盖：",
+            fg="yellow", bold=True
+        ))
+        display_count = min(overwrite_count, 10)
+        for i, (s, t) in enumerate(overwrite_pairs[:display_count], 1):
+            click.echo(f"  {i:2d}. {t.name}")
+        if overwrite_count > 10:
+            click.echo(f"  ... 还有 {overwrite_count - 10} 个文件将被覆盖")
+        click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
 
-    click.echo(click.style("\n预览模式 - 不会实际生成文件", fg="yellow"))
+    click.echo(click.style("\n预览模式 - 不会实际生成文件，磁盘文件保持不变", fg="yellow"))
 
 
 def _show_results(results: dict, output_dir: Path):

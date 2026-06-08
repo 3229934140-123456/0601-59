@@ -130,28 +130,41 @@ def human_time(seconds: float) -> str:
 
 
 def confirm_overwrite(files_to_overwrite: List[Tuple[Path, Path]],
-                      auto_confirm: bool = False) -> List[Tuple[Path, Path]]:
-    if auto_confirm:
-        return files_to_overwrite
-
+                      auto_confirm: bool = False,
+                      show_target_paths: bool = False) -> List[Tuple[Path, Path]]:
     if not files_to_overwrite:
         return []
 
     import click
 
+    total = len(files_to_overwrite)
+
     click.echo(click.style(
-        f"\n⚠  以下 {len(files_to_overwrite)} 个文件将被覆盖:",
+        f"\n⚠  以下 {total} 个目标文件已存在，将被覆盖:",
         fg="yellow", bold=True
     ))
 
-    for i, (source, target) in enumerate(files_to_overwrite[:10], 1):
-        click.echo(f"  {i:2d}. {target.name}")
+    display_count = min(total, 20)
+    for i, (source, target) in enumerate(files_to_overwrite[:display_count], 1):
+        show = str(target) if show_target_paths else target.name
+        click.echo(f"  {i:2d}. {show}")
 
-    if len(files_to_overwrite) > 10:
-        click.echo(f"  ... 还有 {len(files_to_overwrite) - 10} 个文件")
+    if total > 20:
+        remaining = total - 20
+        click.echo(f"  ... 还有 {remaining} 个文件将被覆盖")
 
-    if not click.confirm("\n是否确认覆盖这些文件?", default=False):
-        click.echo(click.style("已跳过所有将被覆盖的文件", fg="cyan"))
+    if auto_confirm:
+        click.echo(click.style(
+            f"\n已设置 --overwrite，将自动覆盖以上 {total} 个文件",
+            fg="cyan"
+        ))
+        if not click.confirm("是否继续？", default=True):
+            click.echo(click.style("已取消，所有将跳过所有文件", fg="cyan"))
+            return []
+        return files_to_overwrite
+
+    if not click.confirm("\n是否确认覆盖这些文件？(直接回车默认跳过)", default=False):
+        click.echo(click.style("已取消，将跳过所有将被覆盖的文件", fg="cyan"))
         return []
 
     return files_to_overwrite

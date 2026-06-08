@@ -13,7 +13,6 @@ from brand_kit.utils import (
     get_files_by_extension,
     safe_copy,
     sanitize_filename,
-    get_next_available_path,
     get_file_hash,
     format_size,
     confirm_overwrite,
@@ -89,8 +88,9 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
         click.echo(click.style(f"恢复操作，跳过 {len(processed)} 个已处理文件", fg="cyan"))
 
     overwrite_pairs = check_overwrites([(s, t) for s, t, _ in pairs_to_process])
-    if overwrite_pairs and not overwrite:
-        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=False)
+    if overwrite_pairs:
+        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=overwrite,
+                                            show_target_paths=True)
         confirmed_targets = {str(t) for _, t in confirmed_pairs}
     else:
         confirmed_targets = set()
@@ -147,31 +147,41 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
                         continue
                     existing_hashes.add(file_hash)
 
-                actual_target = target_path
                 if target_path.exists():
-                    if overwrite or str(target_path) in confirmed_targets:
-                        pass
-                    else:
-                        actual_target = get_next_available_path(target_dir, target_path.name)
+                    if str(target_path) not in confirmed_targets:
+                        results["items"].append({
+                            "name": file_path.name,
+                            "type": file_type,
+                            "size": format_size(file_path.stat().st_size),
+                            "status": "skipped",
+                            "notes": f"目标已存在: {target_path.name}",
+                        })
+                        results["summary"]["跳过"] += 1
+                        logger.log_action(
+                            "import", str(file_path), str(target_path),
+                            status="skipped", details="目标文件已存在，未确认覆盖"
+                        )
+                        progress.advance(task)
+                        continue
 
-                success, msg = safe_copy(file_path, actual_target, overwrite)
+                success, msg = safe_copy(file_path, target_path, overwrite)
 
                 if success:
                     if copyright_text:
-                        _add_copyright_metadata(actual_target, copyright_text)
+                        _add_copyright_metadata(target_path, copyright_text)
 
-                    imported_files.append((str(file_path), str(actual_target)))
+                    imported_files.append((str(file_path), str(target_path)))
 
                     results["items"].append({
-                        "name": actual_target.name,
+                        "name": target_path.name,
                         "type": file_type,
-                        "size": format_size(actual_target.stat().st_size),
+                        "size": format_size(target_path.stat().st_size),
                         "status": "success",
                         "notes": msg,
                     })
                     results["summary"]["成功"] += 1
                     logger.log_action(
-                        "import", str(file_path), str(actual_target),
+                        "import", str(file_path), str(target_path),
                         status="success", details=msg
                     )
                 else:
@@ -264,6 +274,9 @@ def _collect_existing_hashes(target_dirs: dict, import_type: str) -> Set[str]:
 
 
 def _show_preview(pairs: list, import_type: str, theme: str, overwrite: bool):
+    overwrite_pairs = [(s, t) for s, t, _ in pairs if t.exists()]
+    overwrite_count = len(overwrite_pairs)
+
     table = Table(title=f"导入预览 - 共 {len(pairs)} 个文件")
     table.add_column("源文件", style="cyan", overflow="fold")
     table.add_column("类型", style="green")
@@ -271,12 +284,10 @@ def _show_preview(pairs: list, import_type: str, theme: str, overwrite: bool):
     table.add_column("目标位置", style="magenta")
     table.add_column("状态", style="white")
 
-    overwrite_count = 0
     for source, target, ftype in pairs[:20]:
         status = ""
         if target.exists():
             status = "⚠ 将覆盖"
-            overwrite_count += 1
         table.add_row(
             source.name,
             ftype,
@@ -291,11 +302,18 @@ def _show_preview(pairs: list, import_type: str, theme: str, overwrite: bool):
     console.print(table)
 
     if overwrite_count > 0:
-        click.echo(click.style(f"\n⚠  有 {overwrite_count} 个文件将被覆盖", fg="yellow"))
-        if not overwrite:
-            click.echo(click.style("  运行时会提示确认，未确认的文件将自动重命名", fg="cyan"))
+        click.echo(click.style(
+            f"\n⚠  有 {overwrite_count} 个目标文件已存在，将被覆盖：",
+            fg="yellow", bold=True
+        ))
+        display_count = min(overwrite_count, 10)
+        for i, (s, t) in enumerate(overwrite_pairs[:display_count], 1):
+            click.echo(f"  {i:2d}. {t}")
+        if overwrite_count > 10:
+            click.echo(f"  ... 还有 {overwrite_count - 10} 个文件将被覆盖")
+        click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
 
-    click.echo(click.style("\n预览模式 - 不会实际复制文件", fg="yellow"))
+    click.echo(click.style("\n预览模式 - 不会实际复制文件，磁盘文件保持不变", fg="yellow"))
 
 
 def _show_results(results: dict):

@@ -1,0 +1,41 @@
+{
+  "session_id": "20260608_181503",
+  "start_time": "2026-06-08T18:15:03.359830",
+  "end_time": "2026-06-08T18:15:03.385767",
+  "command": "pack",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T18:15:03.366555",
+      "command": "pack",
+      "action": "pack",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default\\test_red.png",
+      "target": "default\\test_red.png",
+      "status": "success",
+      "details": ""
+    },
+    {
+      "timestamp": "2026-06-08T18:15:03.373364",
+      "command": "pack",
+      "action": "pack",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png",
+      "target": "test_blue.png",
+      "status": "success",
+      "details": ""
+    },
+    {
+      "timestamp": "2026-06-08T18:15:03.377964",
+      "command": "pack",
+      "action": "pack",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_red.png",
+      "target": "test_red.png",
+      "status": "success",
+      "details": ""
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "success": 3,
+    "failed": 0,
+    "skipped": 0
+  }
+}

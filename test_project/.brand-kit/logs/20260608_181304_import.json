@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_181304",
+  "start_time": "2026-06-08T18:13:04.795205",
+  "end_time": "2026-06-08T18:13:04.801280",
+  "command": "import",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T18:13:04.801280",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\import_source\\test_red.png",
+      "target": "",
+      "status": "skipped",
+      "details": "重复文件"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 0,
+    "failed": 0,
+    "skipped": 1
+  }
+}

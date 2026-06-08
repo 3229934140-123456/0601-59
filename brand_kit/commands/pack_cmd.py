@@ -121,10 +121,11 @@ def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
                       output_dir, package_path, overwrite)
         return
 
-    if package_path.exists() and not overwrite:
+    if package_path.exists():
         confirmed = confirm_overwrite(
             [(Path("source"), package_path)],
-            auto_confirm=False
+            auto_confirm=overwrite,
+            show_target_paths=True
         )
         if not confirmed:
             click.echo(click.style("已取消，跳过生成交付包", fg="cyan"))
@@ -145,21 +146,20 @@ def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    confirmed_overwrite = package_path.exists()
+
     if pack_format == "dir":
-        package_path = output_dir / package_name
-        _pack_to_directory(files, source_path, package_path, overwrite,
+        _pack_to_directory(files, source_path, package_path, confirmed_overwrite,
                           manifest, manifest_format, config, theme,
                           copyright_text, include_config, include_readme,
                           results, logger, file_type)
     elif pack_format == "tar":
-        package_path = output_dir / f"{package_name}.tar.gz"
-        _pack_to_tar(files, source_path, package_path, overwrite,
+        _pack_to_tar(files, source_path, package_path, confirmed_overwrite,
                     manifest, manifest_format, config, theme,
                     copyright_text, include_config, include_readme,
                     results, logger, file_type)
     else:
-        package_path = output_dir / f"{package_name}.zip"
-        _pack_to_zip(files, source_path, package_path, overwrite,
+        _pack_to_zip(files, source_path, package_path, confirmed_overwrite,
                     manifest, manifest_format, config, theme,
                     copyright_text, include_config, include_readme,
                     results, logger, file_type)
