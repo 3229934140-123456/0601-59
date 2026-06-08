@@ -167,15 +167,19 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
                     original_size = current_img.size
 
                 if out_path.exists():
-                    if not overwrite and str(out_path) not in confirmed_targets:
+                    if str(out_path) not in confirmed_targets:
                         results["items"].append({
                             "name": out_path.name,
                             "type": "image",
                             "size": format_size(out_path.stat().st_size),
                             "status": "skipped",
-                            "notes": "文件已存在",
+                            "notes": "文件已存在，未确认覆盖",
                         })
                         results["summary"]["跳过"] += 1
+                        logger.log_action(
+                            "resize", str(img_path), str(out_path),
+                            status="skipped", details="目标文件已存在，未确认覆盖"
+                        )
                         progress.advance(task)
                         continue
 

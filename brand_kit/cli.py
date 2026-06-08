@@ -36,6 +36,12 @@ pass_brand = click.make_pass_decorator(dict, ensure=True)
 @click.pass_context
 def main(ctx):
     """创意设计平台命令行工具 - 批量整理品牌素材"""
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
     else:

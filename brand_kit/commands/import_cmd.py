@@ -164,7 +164,8 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
                         progress.advance(task)
                         continue
 
-                success, msg = safe_copy(file_path, target_path, overwrite)
+                should_overwrite = str(target_path) in confirmed_targets
+                success, msg = safe_copy(file_path, target_path, should_overwrite)
 
                 if success:
                     if copyright_text:

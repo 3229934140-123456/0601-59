@@ -135,7 +135,7 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
                     continue
 
                 if new_path.exists():
-                    if not overwrite and str(new_path) not in confirmed_targets:
+                    if str(new_path) not in confirmed_targets:
                         results["items"].append({
                             "name": file_path.name,
                             "type": file_path.suffix.lstrip("."),
@@ -151,7 +151,8 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
                         progress.advance(task)
                         continue
 
-                success, msg = safe_move(file_path, new_path, overwrite)
+                should_overwrite = str(new_path) in confirmed_targets
+                success, msg = safe_move(file_path, new_path, should_overwrite)
 
                 if success:
                     renamed_files.append((str(file_path), str(new_path)))

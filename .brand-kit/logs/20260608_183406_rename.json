@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_183406",
+  "start_time": "2026-06-08T18:34:06.928287",
+  "end_time": "2026-06-08T18:34:06.966848",
+  "command": "rename",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T18:34:06.964677",
+      "command": "rename",
+      "action": "rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\assets\\images\\a.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\assets\\images\\b.png",
+      "status": "success",
+      "details": "移动成功: D:\\trae-bz\\TraeProjects\\59\\assets\\images\\a.png -> D:\\trae-bz\\TraeProjects\\59\\assets\\images\\b.png"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

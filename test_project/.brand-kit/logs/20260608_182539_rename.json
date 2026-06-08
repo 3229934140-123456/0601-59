@@ -1,0 +1,32 @@
+{
+  "session_id": "20260608_182539",
+  "start_time": "2026-06-08T18:25:39.076566",
+  "end_time": "2026-06-08T18:25:39.082883",
+  "command": "rename",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T18:25:39.081873",
+      "command": "rename",
+      "action": "rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test.png",
+      "status": "success",
+      "details": "移动成功: D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png -> D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test.png"
+    },
+    {
+      "timestamp": "2026-06-08T18:25:39.081873",
+      "command": "rename",
+      "action": "rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_red.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test.png",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 1,
+    "failed": 0,
+    "skipped": 1
+  }
+}
