@@ -13,7 +13,8 @@ from brand_kit.utils import (
     get_files_by_extension,
     sanitize_filename,
     format_size,
-    safe_copy,
+    confirm_overwrite,
+    check_overwrites,
 )
 
 console = Console()
@@ -108,9 +109,27 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
     else:
         output_dir = Path(output).resolve()
 
+    output_pairs = []
+    for img_path in files:
+        for size_name, (target_w, target_h) in target_sizes:
+            out_filename = _generate_filename(
+                img_path, size_name, target_w, target_h,
+                output_format, suffix
+            )
+            out_path = output_dir / out_filename
+            output_pairs.append((img_path, out_path, size_name, target_w, target_h))
+
     if preview:
-        _show_preview(files, target_sizes, output_dir, output_format, fit)
+        _show_preview(output_pairs, output_dir, output_format, fit, overwrite)
         return
+
+    overwrite_check = [(Path("dummy"), t) for _, t, _, _, _ in output_pairs]
+    overwrite_pairs = check_overwrites(overwrite_check)
+    if overwrite_pairs and not overwrite:
+        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=False)
+        confirmed_targets = {str(t) for _, t in confirmed_pairs}
+    else:
+        confirmed_targets = set()
 
     logger.start_session("resize")
 
@@ -120,6 +139,7 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
             "源图片": len(files),
             "目标尺寸": len(target_sizes),
             "生成文件": 0,
+            "跳过": 0,
             "失败": 0,
         },
     }
@@ -132,84 +152,69 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-        total = len(files) * len(target_sizes)
+        total = len(output_pairs)
         task = progress.add_task(f"生成 {total} 张图片...", total=total)
 
-        for img_path in files:
+        current_img = None
+        current_img_path = None
+        for img_path, out_path, size_name, target_w, target_h in output_pairs:
             try:
-                img = Image.open(img_path)
-                original_size = img.size
+                if current_img_path != img_path:
+                    if current_img:
+                        current_img.close()
+                    current_img = Image.open(img_path)
+                    current_img_path = img_path
+                    original_size = current_img.size
 
-                for size_name, (target_w, target_h) in target_sizes:
-                    try:
-                        resized_img = _resize_image(img, target_w, target_h, fit, background, resample)
-
-                        out_filename = _generate_filename(
-                            img_path, size_name, target_w, target_h,
-                            output_format, suffix
-                        )
-                        out_path = output_dir / out_filename
-
-                        if out_path.exists() and not overwrite:
-                            results["items"].append({
-                                "name": out_path.name,
-                                "type": "image",
-                                "size": format_size(out_path.stat().st_size),
-                                "status": "skipped",
-                                "notes": "文件已存在",
-                            })
-                            progress.advance(task)
-                            continue
-
-                        _save_image(resized_img, out_path, output_format, quality, copyright_text)
-
+                if out_path.exists():
+                    if not overwrite and str(out_path) not in confirmed_targets:
                         results["items"].append({
                             "name": out_path.name,
                             "type": "image",
-                            "size": f"{target_w}x{target_h}",
-                            "status": "success",
-                            "notes": f"{format_size(out_path.stat().st_size)}",
+                            "size": format_size(out_path.stat().st_size),
+                            "status": "skipped",
+                            "notes": "文件已存在",
                         })
-                        results["summary"]["生成文件"] += 1
+                        results["summary"]["跳过"] += 1
+                        progress.advance(task)
+                        continue
 
-                        logger.log_action(
-                            "resize", str(img_path), str(out_path),
-                            status="success",
-                            details=f"{original_size[0]}x{original_size[1]} -> {target_w}x{target_h}"
-                        )
-                    except Exception as e:
-                        results["items"].append({
-                            "name": f"{img_path.name} ({target_w}x{target_h})",
-                            "type": "image",
-                            "size": "N/A",
-                            "status": "error",
-                            "notes": str(e),
-                        })
-                        results["summary"]["失败"] += 1
-                        logger.log_action(
-                            "resize", str(img_path),
-                            status="failed",
-                            details=f"{target_w}x{target_h}: {e}"
-                        )
+                resized_img = _resize_image(current_img, target_w, target_h, fit, background, resample)
+                _save_image(resized_img, out_path, output_format, quality, copyright_text)
 
-                    progress.advance(task)
+                results["items"].append({
+                    "name": out_path.name,
+                    "type": "image",
+                    "size": f"{target_w}x{target_h}",
+                    "status": "success",
+                    "notes": f"{format_size(out_path.stat().st_size)}",
+                })
+                results["summary"]["生成文件"] += 1
 
-                img.close()
+                logger.log_action(
+                    "resize", str(img_path), str(out_path),
+                    status="success",
+                    details=f"{original_size[0]}x{original_size[1]} -> {target_w}x{target_h}"
+                )
             except Exception as e:
                 results["items"].append({
-                    "name": img_path.name,
+                    "name": f"{img_path.name} ({target_w}x{target_h})",
                     "type": "image",
                     "size": "N/A",
                     "status": "error",
-                    "notes": f"打开失败: {e}",
+                    "notes": str(e),
                 })
-                results["summary"]["失败"] += len(target_sizes)
+                results["summary"]["失败"] += 1
                 logger.log_action(
                     "resize", str(img_path),
-                    status="failed", details=f"打开失败: {e}"
+                    status="failed",
+                    details=f"{target_w}x{target_h}: {e}"
                 )
-                for _ in target_sizes:
-                    progress.advance(task)
+
+            progress.advance(task)
+
+        if current_img:
+            current_img.close()
 
     logger.end_session()
     _show_results(results, output_dir)
@@ -358,21 +363,37 @@ def _save_image(img: Image.Image, output_path: Path, output_format: str,
     img.save(output_path, **save_kwargs)
 
 
-def _show_preview(files: List[Path], sizes: List[Tuple[str, Tuple[int, int]]],
-                  output_dir: Path, output_format: str, fit: str):
-    table = Table(title=f"尺寸预览 - {len(files)} 张图片 × {len(sizes)} 种尺寸")
+def _show_preview(output_pairs: list, output_dir: Path, output_format: str,
+                  fit: str, overwrite: bool):
+    files_set = set()
+    sizes_set = set()
+    overwrite_count = 0
+
+    for img_path, out_path, size_name, w, h in output_pairs:
+        files_set.add(img_path.name)
+        sizes_set.add((size_name, w, h))
+        if out_path.exists():
+            overwrite_count += 1
+
+    table = Table(title=f"尺寸预览 - {len(files_set)} 张图片 × {len(sizes_set)} 种尺寸")
     table.add_column("尺寸名称", style="cyan")
     table.add_column("宽×高", style="green")
     table.add_column("适应方式", style="yellow")
     table.add_column("输出格式", style="magenta")
 
-    for name, (w, h) in sizes:
+    for name, w, h in sorted(sizes_set):
         table.add_row(name, f"{w} × {h}", fit, output_format)
 
     console.print(table)
 
-    click.echo(f"\n将生成 {len(files) * len(sizes)} 个文件")
+    click.echo(f"\n将生成 {len(output_pairs)} 个文件")
     click.echo(f"输出目录: {output_dir}")
+
+    if overwrite_count > 0:
+        click.echo(click.style(f"⚠  有 {overwrite_count} 个文件将被覆盖", fg="yellow"))
+        if not overwrite:
+            click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
+
     click.echo(click.style("\n预览模式 - 不会实际生成文件", fg="yellow"))
 
 

@@ -127,3 +127,71 @@ def human_time(seconds: float) -> str:
     hours = minutes // 60
     minutes = minutes % 60
     return f"{hours}小时{minutes}分{secs:.1f}秒"
+
+
+def confirm_overwrite(files_to_overwrite: List[Tuple[Path, Path]],
+                      auto_confirm: bool = False) -> List[Tuple[Path, Path]]:
+    if auto_confirm:
+        return files_to_overwrite
+
+    if not files_to_overwrite:
+        return []
+
+    import click
+
+    click.echo(click.style(
+        f"\n⚠  以下 {len(files_to_overwrite)} 个文件将被覆盖:",
+        fg="yellow", bold=True
+    ))
+
+    for i, (source, target) in enumerate(files_to_overwrite[:10], 1):
+        click.echo(f"  {i:2d}. {target.name}")
+
+    if len(files_to_overwrite) > 10:
+        click.echo(f"  ... 还有 {len(files_to_overwrite) - 10} 个文件")
+
+    if not click.confirm("\n是否确认覆盖这些文件?", default=False):
+        click.echo(click.style("已跳过所有将被覆盖的文件", fg="cyan"))
+        return []
+
+    return files_to_overwrite
+
+
+def check_overwrites(source_target_pairs: List[Tuple[Path, Path]]) -> List[Tuple[Path, Path]]:
+    return [(s, t) for s, t in source_target_pairs if t.exists()]
+
+
+def get_icon_extensions() -> set:
+    return {".ico", ".icns"}
+
+
+def is_icon_file(file_path: Path, base_dir: Path = None) -> bool:
+    ext = file_path.suffix.lower()
+    if ext in get_icon_extensions():
+        return True
+    if base_dir is not None:
+        try:
+            rel = file_path.relative_to(base_dir)
+            if "icons" in rel.parts or "icon" in rel.parts:
+                return True
+        except ValueError:
+            pass
+    return False
+
+
+def is_image_file(file_path: Path, base_dir: Path = None) -> bool:
+    ext = file_path.suffix.lower()
+    if ext in IMAGE_EXTENSIONS and ext not in get_icon_extensions():
+        if base_dir is not None:
+            try:
+                rel = file_path.relative_to(base_dir)
+                if "icons" in rel.parts or "icon" in rel.parts:
+                    return False
+            except ValueError:
+                pass
+        return True
+    return False
+
+
+def is_font_file(file_path: Path) -> bool:
+    return file_path.suffix.lower() in FONT_EXTENSIONS

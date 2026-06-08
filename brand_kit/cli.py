@@ -50,6 +50,7 @@ def register_commands():
     from brand_kit.commands.resize_cmd import resize_cmd
     from brand_kit.commands.check_cmd import check_cmd
     from brand_kit.commands.pack_cmd import pack_cmd
+    from brand_kit.commands.undo_cmd import undo_cmd
 
     main.add_command(init_cmd)
     main.add_command(import_cmd)
@@ -58,6 +59,7 @@ def register_commands():
     main.add_command(resize_cmd)
     main.add_command(check_cmd)
     main.add_command(pack_cmd)
+    main.add_command(undo_cmd)
 
 
 register_commands()

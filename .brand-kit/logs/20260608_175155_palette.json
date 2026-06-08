@@ -1,0 +1,32 @@
+{
+  "session_id": "20260608_175155",
+  "start_time": "2026-06-08T17:51:55.295982",
+  "end_time": "2026-06-08T17:51:55.351597",
+  "command": "palette",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T17:51:55.332388",
+      "command": "palette",
+      "action": "palette",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\output\\palettes\\test",
+      "status": "success",
+      "details": "提取 1 种颜色"
+    },
+    {
+      "timestamp": "2026-06-08T17:51:55.349269",
+      "command": "palette",
+      "action": "palette",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_red.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\output\\palettes\\test",
+      "status": "success",
+      "details": "提取 1 种颜色"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 2,
+    "failed": 0,
+    "skipped": 0
+  }
+}

@@ -14,6 +14,8 @@ from brand_kit.utils import (
     get_files_by_extension,
     safe_move,
     format_size,
+    confirm_overwrite,
+    check_overwrites,
     IMAGE_EXTENSIONS,
     FONT_EXTENSIONS,
     ICON_EXTENSIONS,
@@ -77,10 +79,25 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
 
     naming_pattern = custom_pattern if pattern == "custom" and custom_pattern else RENAME_PATTERNS.get(pattern, RENAME_PATTERNS["snake"])
 
+    rename_pairs = []
+    for idx, file_path in enumerate(files, start=start_index):
+        new_name = _generate_name(
+            file_path, naming_pattern, theme, base_name, idx,
+            prefix, suffix, lower, replace_space
+        )
+        new_path = file_path.parent / new_name
+        rename_pairs.append((file_path, new_path))
+
     if preview:
-        _show_preview(files, naming_pattern, theme, base_name, start_index,
-                      prefix, suffix, lower, replace_space)
+        _show_preview(rename_pairs, overwrite)
         return
+
+    overwrite_pairs = [(s, t) for s, t in rename_pairs if t.exists() and s != t]
+    if overwrite_pairs and not overwrite:
+        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=False)
+        confirmed_targets = {str(t) for _, t in confirmed_pairs}
+    else:
+        confirmed_targets = set()
 
     logger.start_session("rename")
 
@@ -94,6 +111,8 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
         },
     }
 
+    renamed_files = []
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -101,14 +120,8 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
     ) as progress:
         task = progress.add_task(f"重命名 {len(files)} 个文件...", total=len(files))
 
-        for idx, file_path in enumerate(files, start=start_index):
+        for file_path, new_path in rename_pairs:
             try:
-                new_name = _generate_name(
-                    file_path, naming_pattern, theme, base_name, idx,
-                    prefix, suffix, lower, replace_space
-                )
-                new_path = file_path.parent / new_name
-
                 if new_path == file_path:
                     results["items"].append({
                         "name": file_path.name,
@@ -121,27 +134,29 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
                     progress.advance(task)
                     continue
 
-                if new_path.exists() and not overwrite:
-                    results["items"].append({
-                        "name": file_path.name,
-                        "type": file_path.suffix.lstrip("."),
-                        "size": format_size(file_path.stat().st_size),
-                        "status": "skipped",
-                        "notes": f"目标已存在: {new_name}",
-                    })
-                    results["summary"]["跳过"] += 1
-                    logger.log_action(
-                        "rename", str(file_path), str(new_path),
-                        status="skipped", details="目标文件已存在"
-                    )
-                    progress.advance(task)
-                    continue
+                if new_path.exists():
+                    if not overwrite and str(new_path) not in confirmed_targets:
+                        results["items"].append({
+                            "name": file_path.name,
+                            "type": file_path.suffix.lstrip("."),
+                            "size": format_size(file_path.stat().st_size),
+                            "status": "skipped",
+                            "notes": f"目标已存在: {new_path.name}",
+                        })
+                        results["summary"]["跳过"] += 1
+                        logger.log_action(
+                            "rename", str(file_path), str(new_path),
+                            status="skipped", details="目标文件已存在，未确认覆盖"
+                        )
+                        progress.advance(task)
+                        continue
 
                 success, msg = safe_move(file_path, new_path, overwrite)
 
                 if success:
+                    renamed_files.append((str(file_path), str(new_path)))
                     results["items"].append({
-                        "name": f"{file_path.name} → {new_name}",
+                        "name": f"{file_path.name} → {new_path.name}",
                         "type": file_path.suffix.lstrip("."),
                         "size": format_size(new_path.stat().st_size),
                         "status": "success",
@@ -183,6 +198,8 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
             progress.advance(task)
 
     logger.end_session()
+    _save_rename_history(project_root, renamed_files)
+
     _show_results(results)
 
     if report:
@@ -237,25 +254,38 @@ def _generate_name(file_path: Path, pattern: str, theme: str, base_name: str,
     return f"{new_stem}{ext}"
 
 
-def _show_preview(files: List[Path], pattern: str, theme: str, base_name: str,
-                  start_index: int, prefix: str, suffix: str, lower: bool,
-                  replace_space: str):
-    table = Table(title=f"重命名预览 - 共 {len(files)} 个文件")
+def _show_preview(rename_pairs: list, overwrite: bool):
+    table = Table(title=f"重命名预览 - 共 {len(rename_pairs)} 个文件")
     table.add_column("#", style="yellow", width=4)
     table.add_column("原文件名", style="cyan", overflow="fold")
     table.add_column("新文件名", style="green", overflow="fold")
+    table.add_column("状态", style="white")
 
-    for idx, f in enumerate(files[:20], start=start_index):
-        new_name = _generate_name(
-            f, pattern, theme, base_name, idx,
-            prefix, suffix, lower, replace_space
+    overwrite_count = 0
+    for idx, (old_path, new_path) in enumerate(rename_pairs[:20], 1):
+        status = ""
+        if old_path == new_path:
+            status = "名称未变"
+        elif new_path.exists():
+            status = "⚠ 将覆盖"
+            overwrite_count += 1
+        table.add_row(
+            str(idx),
+            old_path.name,
+            new_path.name,
+            click.style(status, fg="yellow") if status else "",
         )
-        table.add_row(str(idx), f.name, new_name)
 
-    if len(files) > 20:
-        table.add_row("...", f"... 还有 {len(files) - 20} 个文件", "")
+    if len(rename_pairs) > 20:
+        table.add_row("...", f"... 还有 {len(rename_pairs) - 20} 个文件", "", "")
 
     console.print(table)
+
+    if overwrite_count > 0:
+        click.echo(click.style(f"\n⚠  有 {overwrite_count} 个文件将被覆盖", fg="yellow"))
+        if not overwrite:
+            click.echo(click.style("  运行时会提示确认，未确认的文件将跳过", fg="cyan"))
+
     click.echo(click.style("\n预览模式 - 不会实际重命名文件", fg="yellow"))
 
 
@@ -275,3 +305,123 @@ def _show_results(results: dict):
         click.echo(click.style(f"\n✓ 成功重命名 {success_count} 个文件", fg="green"))
     else:
         click.echo(click.style("\n✗ 没有文件被重命名", fg="yellow"))
+
+
+def _save_rename_history(project_root: Path, renamed_files: list):
+    if not renamed_files:
+        return
+    history_file = project_root / ".brand-kit" / "cache" / "rename_last.json"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    import json
+    from datetime import datetime
+    data = {
+        "timestamp": datetime.now().isoformat(),
+        "files": [{"old": old, "new": new} for old, new in renamed_files],
+    }
+    with open(history_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def load_last_rename(project_root: Path) -> dict:
+    history_file = project_root / ".brand-kit" / "cache" / "rename_last.json"
+    if not history_file.exists():
+        return {}
+    import json
+    with open(history_file, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def undo_last_rename(project_root: Path, logger, results: dict):
+    last_rename = load_last_rename(project_root)
+    if not last_rename:
+        return False, "没有找到上次重命名记录"
+
+    renamed = last_rename.get("files", [])
+    if not renamed:
+        return False, "上次重命名记录为空"
+
+    success_count = 0
+    fail_count = 0
+
+    for item in reversed(renamed):
+        old_path = Path(item["old"])
+        new_path = Path(item["new"])
+
+        actual_current = new_path
+        try:
+            if actual_current.exists() and not old_path.exists():
+                success, msg = safe_move(actual_current, old_path, False)
+                if success:
+                    success_count += 1
+                    results["items"].append({
+                        "name": f"{actual_current.name} → {old_path.name}",
+                        "type": old_path.suffix.lstrip("."),
+                        "size": format_size(old_path.stat().st_size),
+                        "status": "success",
+                        "notes": "已撤销重命名",
+                    })
+                    logger.log_action(
+                        "undo_rename", str(actual_current), str(old_path),
+                        status="success", details="撤销重命名"
+                    )
+                else:
+                    fail_count += 1
+                    results["items"].append({
+                        "name": actual_current.name,
+                        "type": actual_current.suffix.lstrip("."),
+                        "size": format_size(actual_current.stat().st_size),
+                        "status": "error",
+                        "notes": msg,
+                    })
+                    logger.log_action(
+                        "undo_rename", str(actual_current),
+                        status="failed", details=msg
+                    )
+            elif old_path.exists():
+                fail_count += 1
+                results["items"].append({
+                    "name": old_path.name,
+                    "type": old_path.suffix.lstrip("."),
+                    "size": "N/A",
+                    "status": "warning",
+                    "notes": "目标已存在，跳过",
+                })
+                logger.log_action(
+                    "undo_rename", str(actual_current),
+                    status="skipped", details="目标已存在"
+                )
+            else:
+                fail_count += 1
+                results["items"].append({
+                    "name": actual_current.name if actual_current.exists() else "unknown",
+                    "type": actual_current.suffix.lstrip("."),
+                    "size": "N/A",
+                    "status": "error",
+                    "notes": "文件不存在",
+                })
+                logger.log_action(
+                    "undo_rename", str(actual_current),
+                    status="failed", details="文件不存在"
+                )
+        except Exception as e:
+            fail_count += 1
+            results["items"].append({
+                "name": actual_current.name,
+                "type": actual_current.suffix.lstrip("."),
+                "size": "N/A",
+                "status": "error",
+                "notes": str(e),
+            })
+            logger.log_action(
+                "undo_rename", str(actual_current),
+                status="failed", details=str(e)
+            )
+
+    results["summary"]["撤销成功"] = success_count
+    results["summary"]["撤销失败"] = fail_count
+
+    history_file = project_root / ".brand-kit" / "cache" / "rename_last.json"
+    if history_file.exists():
+        history_file.unlink()
+
+    return True, f"撤销 {success_count} 个文件，失败 {fail_count} 个"

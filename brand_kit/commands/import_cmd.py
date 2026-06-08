@@ -16,6 +16,8 @@ from brand_kit.utils import (
     get_next_available_path,
     get_file_hash,
     format_size,
+    confirm_overwrite,
+    check_overwrites,
     IMAGE_EXTENSIONS,
     FONT_EXTENSIONS,
     ICON_EXTENSIONS,
@@ -65,21 +67,40 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
         click.echo(click.style("✗ 未找到符合条件的文件", fg="yellow"))
         return
 
+    pairs_to_process = []
+    for file_path in files:
+        file_type = _get_file_type(file_path, import_type)
+        if not file_type:
+            continue
+        target_dir = target_dirs.get(file_type)
+        if not target_dir:
+            continue
+        target_filename = sanitize_filename(file_path.name)
+        target_path = target_dir / target_filename
+        pairs_to_process.append((file_path, target_path, file_type))
+
     if preview:
-        _show_preview(files, import_type, theme, target_dirs)
+        _show_preview(pairs_to_process, import_type, theme, overwrite)
         return
 
     if resume:
         processed = _load_resume_state(project_root)
-        files = [f for f in files if str(f) not in processed]
+        pairs_to_process = [(s, t, ft) for s, t, ft in pairs_to_process if str(s) not in processed]
         click.echo(click.style(f"恢复操作，跳过 {len(processed)} 个已处理文件", fg="cyan"))
+
+    overwrite_pairs = check_overwrites([(s, t) for s, t, _ in pairs_to_process])
+    if overwrite_pairs and not overwrite:
+        confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=False)
+        confirmed_targets = {str(t) for _, t in confirmed_pairs}
+    else:
+        confirmed_targets = set()
 
     logger.start_session("import")
 
     results = {
         "items": [],
         "summary": {
-            "总计": len(files),
+            "总计": len(pairs_to_process),
             "成功": 0,
             "跳过": 0,
             "失败": 0,
@@ -90,6 +111,7 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
     if dedup:
         existing_hashes = _collect_existing_hashes(target_dirs, import_type)
 
+    imported_files = []
     processed_files = set()
     if resume:
         processed_files = _load_resume_state(project_root)
@@ -99,18 +121,11 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-        task = progress.add_task(f"导入 {len(files)} 个文件...", total=len(files))
+        task = progress.add_task(f"导入 {len(pairs_to_process)} 个文件...", total=len(pairs_to_process))
 
-        for file_path in files:
+        for file_path, target_path, file_type in pairs_to_process:
             try:
-                file_type = _get_file_type(file_path, import_type)
-                if not file_type:
-                    continue
-
-                target_dir = target_dirs.get(file_type)
-                if not target_dir:
-                    continue
-
+                target_dir = target_path.parent
                 target_dir.mkdir(parents=True, exist_ok=True)
 
                 if dedup:
@@ -132,28 +147,31 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
                         continue
                     existing_hashes.add(file_hash)
 
-                target_filename = sanitize_filename(file_path.name)
-                target_path = target_dir / target_filename
+                actual_target = target_path
+                if target_path.exists():
+                    if overwrite or str(target_path) in confirmed_targets:
+                        pass
+                    else:
+                        actual_target = get_next_available_path(target_dir, target_path.name)
 
-                if target_path.exists() and not overwrite:
-                    target_path = get_next_available_path(target_dir, target_filename)
-
-                success, msg = safe_copy(file_path, target_path, overwrite)
+                success, msg = safe_copy(file_path, actual_target, overwrite)
 
                 if success:
                     if copyright_text:
-                        _add_copyright_metadata(target_path, copyright_text)
+                        _add_copyright_metadata(actual_target, copyright_text)
+
+                    imported_files.append((str(file_path), str(actual_target)))
 
                     results["items"].append({
-                        "name": target_path.name,
+                        "name": actual_target.name,
                         "type": file_type,
-                        "size": format_size(target_path.stat().st_size),
+                        "size": format_size(actual_target.stat().st_size),
                         "status": "success",
                         "notes": msg,
                     })
                     results["summary"]["成功"] += 1
                     logger.log_action(
-                        "import", str(file_path), str(target_path),
+                        "import", str(file_path), str(actual_target),
                         status="success", details=msg
                     )
                 else:
@@ -191,6 +209,7 @@ def import_cmd(brand, source_dir, import_type, theme, format_filter,
 
     logger.end_session()
     _clear_resume_state(project_root)
+    _save_import_history(project_root, imported_files)
 
     _show_results(results)
 
@@ -244,27 +263,38 @@ def _collect_existing_hashes(target_dirs: dict, import_type: str) -> Set[str]:
     return hashes
 
 
-def _show_preview(files: List[Path], import_type: str, theme: str, target_dirs: dict):
-    table = Table(title=f"导入预览 - 共 {len(files)} 个文件")
+def _show_preview(pairs: list, import_type: str, theme: str, overwrite: bool):
+    table = Table(title=f"导入预览 - 共 {len(pairs)} 个文件")
     table.add_column("源文件", style="cyan", overflow="fold")
     table.add_column("类型", style="green")
     table.add_column("大小", style="yellow")
     table.add_column("目标位置", style="magenta")
+    table.add_column("状态", style="white")
 
-    for f in files[:20]:
-        ftype = _get_file_type(f, import_type) or "unknown"
-        target = target_dirs.get(ftype, Path("N/A"))
+    overwrite_count = 0
+    for source, target, ftype in pairs[:20]:
+        status = ""
+        if target.exists():
+            status = "⚠ 将覆盖"
+            overwrite_count += 1
         table.add_row(
-            f.name,
+            source.name,
             ftype,
-            format_size(f.stat().st_size),
-            str(target / f.name),
+            format_size(source.stat().st_size),
+            str(target),
+            click.style(status, fg="yellow") if status else "",
         )
 
-    if len(files) > 20:
-        table.add_row(f"... 还有 {len(files) - 20} 个文件", "", "", "")
+    if len(pairs) > 20:
+        table.add_row(f"... 还有 {len(pairs) - 20} 个文件", "", "", "", "")
 
     console.print(table)
+
+    if overwrite_count > 0:
+        click.echo(click.style(f"\n⚠  有 {overwrite_count} 个文件将被覆盖", fg="yellow"))
+        if not overwrite:
+            click.echo(click.style("  运行时会提示确认，未确认的文件将自动重命名", fg="cyan"))
+
     click.echo(click.style("\n预览模式 - 不会实际复制文件", fg="yellow"))
 
 
@@ -325,3 +355,95 @@ def _clear_resume_state(project_root: Path):
     state_file = project_root / ".brand-kit" / "cache" / "import_resume.json"
     if state_file.exists():
         state_file.unlink()
+
+
+def _save_import_history(project_root: Path, imported_files: list):
+    if not imported_files:
+        return
+    history_file = project_root / ".brand-kit" / "cache" / "import_last.json"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    import json
+    data = {
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
+        "files": [{"source": s, "target": t} for s, t in imported_files],
+    }
+    with open(history_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def load_last_import(project_root: Path) -> dict:
+    history_file = project_root / ".brand-kit" / "cache" / "import_last.json"
+    if not history_file.exists():
+        return {}
+    import json
+    with open(history_file, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def undo_last_import(project_root: Path, logger, results: dict):
+    last_import = load_last_import(project_root)
+    if not last_import:
+        return False, "没有找到上次导入记录"
+
+    imported = last_import.get("files", [])
+    if not imported:
+        return False, "上次导入记录为空"
+
+    success_count = 0
+    fail_count = 0
+
+    for item in imported:
+        target = Path(item["target"])
+        try:
+            if target.exists():
+                send2trash(str(target))
+                success_count += 1
+                results["items"].append({
+                    "name": target.name,
+                    "type": target.suffix.lstrip("."),
+                    "size": "已删除",
+                    "status": "success",
+                    "notes": "已撤销导入",
+                })
+                logger.log_action(
+                    "undo_import", str(target),
+                    status="success", details="撤销导入，已删除"
+                )
+            else:
+                fail_count += 1
+                results["items"].append({
+                    "name": target.name,
+                    "type": target.suffix.lstrip("."),
+                    "size": "N/A",
+                    "status": "warning",
+                    "notes": "文件不存在，已跳过",
+                })
+                logger.log_action(
+                    "undo_import", str(target),
+                    status="skipped", details="文件不存在"
+                )
+        except Exception as e:
+            fail_count += 1
+            results["items"].append({
+                "name": target.name,
+                "type": target.suffix.lstrip("."),
+                "size": "N/A",
+                "status": "error",
+                "notes": str(e),
+            })
+            logger.log_action(
+                "undo_import", str(target),
+                status="failed", details=str(e)
+            )
+
+    results["summary"]["撤销成功"] = success_count
+    results["summary"]["撤销失败"] = fail_count
+
+    history_file = project_root / ".brand-kit" / "cache" / "import_last.json"
+    if history_file.exists():
+        history_file.unlink()
+
+    return True, f"撤销 {success_count} 个文件，失败 {fail_count} 个"
+
+
+from send2trash import send2trash

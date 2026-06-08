@@ -15,6 +15,9 @@ from brand_kit.utils import (
     get_files_by_extension,
     get_file_hash,
     format_size,
+    is_image_file,
+    is_font_file,
+    is_icon_file,
     IMAGE_EXTENSIONS,
     FONT_EXTENSIONS,
     ICON_EXTENSIONS,
@@ -100,11 +103,13 @@ def check_cmd(brand, target_dir, check_type, min_width, min_height,
         file_notes[f] = []
 
     if "resolution" in checks_to_run:
-        _check_resolution(files, file_status, file_notes, min_width or config.min_resolution[0],
+        image_files = [f for f in files if is_image_file(f)]
+        _check_resolution(image_files, file_status, file_notes, min_width or config.min_resolution[0],
                           min_height or config.min_resolution[1])
 
     if "alpha" in checks_to_run:
-        _check_alpha(files, file_status, file_notes, threshold)
+        image_files = [f for f in files if is_image_file(f)]
+        _check_alpha(image_files, file_status, file_notes, threshold)
 
     if "naming" in checks_to_run:
         _check_naming(files, file_status, file_notes, naming_style)

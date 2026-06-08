@@ -1,0 +1,2 @@
+[console_scripts]
+brand-kit = brand_kit.cli:main

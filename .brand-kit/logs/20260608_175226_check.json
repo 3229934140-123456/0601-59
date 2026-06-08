@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_175226",
+  "start_time": "2026-06-08T17:52:26.075438",
+  "end_time": "2026-06-08T17:52:26.087865",
+  "command": "check",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T17:52:26.087865",
+      "command": "check",
+      "action": "check",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets",
+      "target": "",
+      "status": "success",
+      "details": "检查 3 个文件，通过 1，警告 0，错误 2"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

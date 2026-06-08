@@ -1,0 +1,21 @@
+{
+  "theme": "test",
+  "copyright": "",
+  "colors": [
+    {
+      "name": "color-1",
+      "hex": "#0000ff",
+      "rgb": {
+        "r": 0,
+        "g": 0,
+        "b": 255
+      },
+      "hsl": {
+        "h": 240,
+        "s": 100,
+        "l": 50
+      },
+      "proportion": 1.0
+    }
+  ]
+}

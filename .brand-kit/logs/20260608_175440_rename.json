@@ -1,0 +1,32 @@
+{
+  "session_id": "20260608_175440",
+  "start_time": "2026-06-08T17:54:40.745074",
+  "end_time": "2026-06-08T17:54:40.754783",
+  "command": "rename",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T17:54:40.753242",
+      "command": "rename",
+      "action": "rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default_test_img_001.png",
+      "status": "success",
+      "details": "移动成功: D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png -> D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default_test_img_001.png"
+    },
+    {
+      "timestamp": "2026-06-08T17:54:40.753756",
+      "command": "rename",
+      "action": "rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_red.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default_test_img_002.png",
+      "status": "success",
+      "details": "移动成功: D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_red.png -> D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default_test_img_002.png"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 2,
+    "failed": 0,
+    "skipped": 0
+  }
+}

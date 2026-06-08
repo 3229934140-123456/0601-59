@@ -1,0 +1,32 @@
+{
+  "session_id": "20260608_175513",
+  "start_time": "2026-06-08T17:55:13.864836",
+  "end_time": "2026-06-08T17:55:13.864836",
+  "command": "undo_rename",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T17:55:13.864836",
+      "command": "undo_rename",
+      "action": "undo_rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default_test_img_002.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_red.png",
+      "status": "success",
+      "details": "撤销重命名"
+    },
+    {
+      "timestamp": "2026-06-08T17:55:13.864836",
+      "command": "undo_rename",
+      "action": "undo_rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\default_test_img_001.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\test_project\\assets\\images\\test_blue.png",
+      "status": "success",
+      "details": "撤销重命名"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 2,
+    "failed": 0,
+    "skipped": 0
+  }
+}

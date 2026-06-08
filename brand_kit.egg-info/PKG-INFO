@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: brand-kit
+Version: 1.0.0
+Summary: 创意设计平台命令行工具 - 批量整理品牌素材
+Author: Brand Kit Team
+Requires-Python: >=3.9
+Requires-Dist: click>=8.0.0
+Requires-Dist: Pillow>=9.0.0
+Requires-Dist: colorgram.py>=1.2.0
+Requires-Dist: send2trash>=1.8.0
+Requires-Dist: rich>=12.0.0

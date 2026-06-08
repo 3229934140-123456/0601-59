@@ -365,11 +365,16 @@ def _generate_json_file(colors: List, output_path: Path, theme: str, copyright_t
         "colors": [],
     }
     for i, (r, g, b, proportion) in enumerate(colors):
+        h, s, l = _rgb_to_hsl(r, g, b)
         data["colors"].append({
             "name": f"color-{i + 1}",
             "hex": _rgb_to_hex(r, g, b),
             "rgb": {"r": r, "g": g, "b": b},
-            "hsl": {"h": round(c * 360) for c in _rgb_to_hsl(r, g, b)},
+            "hsl": {
+                "h": round(h * 360),
+                "s": round(s * 100),
+                "l": round(l * 100),
+            },
             "proportion": round(proportion, 4),
         })
 

@@ -16,6 +16,11 @@ from brand_kit.utils import (
     get_files_by_extension,
     format_size,
     sanitize_filename,
+    confirm_overwrite,
+    is_image_file,
+    is_icon_file,
+    is_font_file,
+    get_icon_extensions,
 )
 
 console = Console()
@@ -104,9 +109,26 @@ def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
 
     total_size = sum(f.stat().st_size for f in files)
 
+    if pack_format == "dir":
+        package_path = output_dir / package_name
+    elif pack_format == "tar":
+        package_path = output_dir / f"{package_name}.tar.gz"
+    else:
+        package_path = output_dir / f"{package_name}.zip"
+
     if preview:
-        _show_preview(files, file_counts, total_size, package_name, pack_format, output_dir)
+        _show_preview(files, file_counts, total_size, package_name, pack_format,
+                      output_dir, package_path, overwrite)
         return
+
+    if package_path.exists() and not overwrite:
+        confirmed = confirm_overwrite(
+            [(Path("source"), package_path)],
+            auto_confirm=False
+        )
+        if not confirmed:
+            click.echo(click.style("已取消，跳过生成交付包", fg="cyan"))
+            return
 
     logger.start_session("pack")
 
@@ -128,19 +150,19 @@ def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
         _pack_to_directory(files, source_path, package_path, overwrite,
                           manifest, manifest_format, config, theme,
                           copyright_text, include_config, include_readme,
-                          results, logger)
+                          results, logger, file_type)
     elif pack_format == "tar":
         package_path = output_dir / f"{package_name}.tar.gz"
         _pack_to_tar(files, source_path, package_path, overwrite,
                     manifest, manifest_format, config, theme,
                     copyright_text, include_config, include_readme,
-                    results, logger)
+                    results, logger, file_type)
     else:
         package_path = output_dir / f"{package_name}.zip"
         _pack_to_zip(files, source_path, package_path, overwrite,
                     manifest, manifest_format, config, theme,
                     copyright_text, include_config, include_readme,
-                    results, logger)
+                    results, logger, file_type)
 
     if package_path.exists():
         if pack_format != "dir":
@@ -173,6 +195,8 @@ def _collect_files(source_path: Path, file_type: str, config, theme: str) -> tup
     if source_path.is_file():
         return [source_path], {}
 
+    icon_ext_only = get_icon_extensions()
+
     for root, _, filenames in os.walk(source_path):
         for filename in filenames:
             fpath = Path(root) / filename
@@ -182,18 +206,23 @@ def _collect_files(source_path: Path, file_type: str, config, theme: str) -> tup
                 continue
 
             if theme and theme != "default":
-                rel = fpath.relative_to(source_path)
-                if theme not in str(rel):
-                    continue
+                try:
+                    rel = fpath.relative_to(source_path)
+                    if theme not in str(rel):
+                        continue
+                except ValueError:
+                    pass
 
             files.append(fpath)
 
-            if ext in config.image_formats and ext not in config.icon_formats:
-                counts["image"] += 1
-            elif ext in config.font_formats:
-                counts["font"] += 1
-            elif ext in config.icon_formats:
+            if file_type == "icon":
                 counts["icon"] += 1
+            elif is_font_file(fpath):
+                counts["font"] += 1
+            elif is_icon_file(fpath, source_path):
+                counts["icon"] += 1
+            elif is_image_file(fpath, source_path):
+                counts["image"] += 1
             else:
                 counts["other"] += 1
 
@@ -201,14 +230,26 @@ def _collect_files(source_path: Path, file_type: str, config, theme: str) -> tup
 
 
 def _generate_manifest(files: List[Path], source_path: Path, config, theme: str,
-                       copyright_text: str, fmt: str) -> str:
+                       copyright_text: str, fmt: str, file_type: str = "all") -> str:
     total_size = sum(f.stat().st_size for f in files)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    image_count = sum(1 for f in files if f.suffix.lower() in config.image_formats)
-    font_count = sum(1 for f in files if f.suffix.lower() in config.font_formats)
-    icon_count = sum(1 for f in files if f.suffix.lower() in config.icon_formats)
-    other_count = len(files) - image_count - font_count - icon_count
+    image_count = 0
+    font_count = 0
+    icon_count = 0
+    other_count = 0
+
+    for f in files:
+        if file_type == "icon":
+            icon_count += 1
+        elif is_font_file(f):
+            font_count += 1
+        elif is_icon_file(f, source_path):
+            icon_count += 1
+        elif is_image_file(f, source_path):
+            image_count += 1
+        else:
+            other_count += 1
 
     if fmt == "json":
         data = {
@@ -324,7 +365,7 @@ def _generate_file_list(files: List[Path], source_path: Path) -> str:
 def _pack_to_zip(files: List[Path], source_path: Path, output_path: Path,
                  overwrite: bool, manifest: bool, manifest_fmt: str, config,
                  theme: str, copyright_text: str, include_config: bool,
-                 include_readme: bool, results: dict, logger):
+                 include_readme: bool, results: dict, logger, file_type: str = "all"):
     if output_path.exists():
         if not overwrite:
             click.echo(click.style(f"✗ 交付包已存在: {output_path}", fg="red"))
@@ -366,7 +407,7 @@ def _pack_to_zip(files: List[Path], source_path: Path, output_path: Path,
 
             if manifest:
                 manifest_content = _generate_manifest(files, source_path, config, theme,
-                                                     copyright_text, manifest_fmt)
+                                                     copyright_text, manifest_fmt, file_type)
                 manifest_name = f"manifest.{manifest_fmt if manifest_fmt != 'markdown' else 'md'}"
                 zf.writestr(manifest_name, manifest_content)
 
@@ -384,7 +425,7 @@ def _pack_to_zip(files: List[Path], source_path: Path, output_path: Path,
 def _pack_to_directory(files: List[Path], source_path: Path, output_dir: Path,
                        overwrite: bool, manifest: bool, manifest_fmt: str, config,
                        theme: str, copyright_text: str, include_config: bool,
-                       include_readme: bool, results: dict, logger):
+                       include_readme: bool, results: dict, logger, file_type: str = "all"):
     import shutil
 
     if output_dir.exists():
@@ -431,7 +472,7 @@ def _pack_to_directory(files: List[Path], source_path: Path, output_dir: Path,
 
         if manifest:
             manifest_content = _generate_manifest(files, source_path, config, theme,
-                                                 copyright_text, manifest_fmt)
+                                                 copyright_text, manifest_fmt, file_type)
             manifest_name = f"manifest.{manifest_fmt if manifest_fmt != 'markdown' else 'md'}"
             with open(output_dir / manifest_name, "w", encoding="utf-8") as f:
                 f.write(manifest_content)
@@ -450,7 +491,7 @@ def _pack_to_directory(files: List[Path], source_path: Path, output_dir: Path,
 def _pack_to_tar(files: List[Path], source_path: Path, output_path: Path,
                  overwrite: bool, manifest: bool, manifest_fmt: str, config,
                  theme: str, copyright_text: str, include_config: bool,
-                 include_readme: bool, results: dict, logger):
+                 include_readme: bool, results: dict, logger, file_type: str = "all"):
     import tarfile
     import tempfile
     import shutil
@@ -496,7 +537,7 @@ def _pack_to_tar(files: List[Path], source_path: Path, output_path: Path,
 
             if manifest:
                 manifest_content = _generate_manifest(files, source_path, config, theme,
-                                                     copyright_text, manifest_fmt)
+                                                     copyright_text, manifest_fmt, file_type)
                 manifest_name = f"manifest.{manifest_fmt if manifest_fmt != 'markdown' else 'md'}"
 
                 with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=manifest_fmt) as tmp:
@@ -508,7 +549,8 @@ def _pack_to_tar(files: List[Path], source_path: Path, output_path: Path,
 
 
 def _show_preview(files: List[Path], counts: dict, total_size: int,
-                  package_name: str, pack_format: str, output_dir: Path):
+                  package_name: str, pack_format: str, output_dir: Path,
+                  package_path: Path, overwrite: bool):
     table = Table(title="打包预览")
     table.add_column("项目", style="cyan")
     table.add_column("内容", style="green")
@@ -523,6 +565,11 @@ def _show_preview(files: List[Path], counts: dict, total_size: int,
     table.add_row("输出目录", str(output_dir))
 
     console.print(table)
+
+    if package_path.exists():
+        click.echo(click.style(f"\n⚠  交付包已存在: {package_path.name}", fg="yellow"))
+        if not overwrite:
+            click.echo(click.style("  运行时会提示确认，未确认将取消操作", fg="cyan"))
 
     if len(files) <= 20:
         click.echo("\n文件列表:")
