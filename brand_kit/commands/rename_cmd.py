@@ -16,6 +16,7 @@ from brand_kit.utils import (
     format_size,
     confirm_overwrite,
     check_overwrites,
+    get_file_info,
     IMAGE_EXTENSIONS,
     FONT_EXTENSIONS,
     ICON_EXTENSIONS,
@@ -50,12 +51,13 @@ RENAME_PATTERNS = {
 @click.option("--replace-space", default="_", help="空格替换字符")
 @click.option("--recursive/--no-recursive", default=False, help="递归处理子目录")
 @click.option("--preview", is_flag=True, help="预览模式，不实际重命名")
+@click.option("--dry-run", "dry_run", is_flag=True, help="对比模式，展示详细差异但不执行")
 @click.option("--overwrite", is_flag=True, help="覆盖已存在的文件")
 @click.option("--report", is_flag=True, help="生成复核报告")
 @pass_brand
 def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
                start_index, file_type, prefix, suffix, lower, replace_space,
-               recursive, preview, overwrite, report):
+               recursive, preview, dry_run, overwrite, report):
     """按规则批量重命名文件"""
     project_root = brand["project_root"]
     config = brand["config"]
@@ -92,6 +94,10 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
         _show_preview(rename_pairs, overwrite)
         return
 
+    if dry_run:
+        _show_dry_run(rename_pairs)
+        return
+
     overwrite_pairs = [(s, t) for s, t in rename_pairs if t.exists() and s != t]
     if overwrite_pairs:
         confirmed_pairs = confirm_overwrite(overwrite_pairs, auto_confirm=overwrite)
@@ -105,7 +111,8 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
         "items": [],
         "summary": {
             "总计": len(files),
-            "成功": 0,
+            "新增": 0,
+            "覆盖": 0,
             "跳过": 0,
             "失败": 0,
         },
@@ -124,24 +131,29 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
             try:
                 if new_path == file_path:
                     results["items"].append({
+                        "source": file_path.name,
+                        "target": new_path.name,
                         "name": file_path.name,
                         "type": file_path.suffix.lstrip("."),
                         "size": format_size(file_path.stat().st_size),
                         "status": "skipped",
-                        "notes": "名称未变化",
+                        "notes": "\u540d\u79f0\u672a\u53d8\u5316",
                     })
                     results["summary"]["跳过"] += 1
                     progress.advance(task)
                     continue
 
-                if new_path.exists():
+                is_overwrite = new_path.exists()
+                if is_overwrite:
                     if str(new_path) not in confirmed_targets:
                         results["items"].append({
+                            "source": file_path.name,
+                            "target": new_path.name,
                             "name": file_path.name,
                             "type": file_path.suffix.lstrip("."),
                             "size": format_size(file_path.stat().st_size),
                             "status": "skipped",
-                            "notes": f"目标已存在: {new_path.name}",
+                            "notes": f"\u76ee\u6807\u5df2\u5b58\u5728: {new_path.name}",
                         })
                         results["summary"]["跳过"] += 1
                         logger.log_action(
@@ -156,24 +168,30 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
 
                 if success:
                     renamed_files.append((str(file_path), str(new_path)))
+                    status = "overwritten" if is_overwrite else "generated"
+                    status_key = "\u8986\u76d6" if is_overwrite else "\u65b0\u589e"
                     results["items"].append({
-                        "name": f"{file_path.name} → {new_path.name}",
+                        "source": file_path.name,
+                        "target": new_path.name,
+                        "name": f"{file_path.name} \u2192 {new_path.name}",
                         "type": file_path.suffix.lstrip("."),
                         "size": format_size(new_path.stat().st_size),
-                        "status": "success",
+                        "status": status,
                         "notes": msg,
                     })
-                    results["summary"]["成功"] += 1
+                    results["summary"][status_key] += 1
                     logger.log_action(
                         "rename", str(file_path), str(new_path),
-                        status="success", details=msg
+                        status=status, details=msg
                     )
                 else:
                     results["items"].append({
+                        "source": file_path.name,
+                        "target": new_path.name,
                         "name": file_path.name,
                         "type": file_path.suffix.lstrip("."),
                         "size": format_size(file_path.stat().st_size),
-                        "status": "error",
+                        "status": "failed",
                         "notes": msg,
                     })
                     results["summary"]["失败"] += 1
@@ -184,10 +202,12 @@ def rename_cmd(brand, target_dir, pattern, custom_pattern, theme, base_name,
 
             except Exception as e:
                 results["items"].append({
+                    "source": file_path.name,
+                    "target": new_path.name if 'new_path' in dir() else "",
                     "name": file_path.name,
                     "type": file_path.suffix.lstrip("."),
                     "size": format_size(file_path.stat().st_size) if file_path.exists() else "N/A",
-                    "status": "error",
+                    "status": "failed",
                     "notes": str(e),
                 })
                 results["summary"]["失败"] += 1
@@ -298,22 +318,107 @@ def _show_preview(rename_pairs: list, overwrite: bool):
     click.echo(click.style("\n预览模式 - 不会实际重命名文件，磁盘文件保持不变", fg="yellow"))
 
 
+def _show_dry_run(rename_pairs: list):
+    overwrite_pairs = [(s, t) for s, t in rename_pairs if t.exists() and s != t]
+    new_pairs = [(s, t) for s, t in rename_pairs if not t.exists() and s != t]
+    same_pairs = [(s, t) for s, t in rename_pairs if s == t]
+
+    total = len(rename_pairs)
+    will_overwrite = len(overwrite_pairs)
+    will_create = len(new_pairs)
+    no_change = len(same_pairs)
+
+    click.echo()
+    click.echo(click.style("=== Dry-Run 对比模式 ===", fg="cyan", bold=True))
+    click.echo(f"总计 {total} 个文件："
+               f"新增 {will_create} 个，覆盖 {will_overwrite} 个，不变 {no_change} 个")
+
+    if overwrite_pairs:
+        click.echo()
+        table = Table(title=f"\u5373\u5c06\u8986\u76d6 ({will_overwrite} 个)")
+        table.add_column("目标文件", style="yellow", overflow="fold")
+        table.add_column("源大小", style="cyan", justify="right")
+        table.add_column("目标大小", style="magenta", justify="right")
+        table.add_column("源尺寸", style="cyan", justify="right")
+        table.add_column("目标尺寸", style="magenta", justify="right")
+        table.add_column("源哈希", style="cyan")
+        table.add_column("目标哈希", style="magenta")
+
+        for s, t in overwrite_pairs[:15]:
+            src_info = get_file_info(s)
+            tgt_info = get_file_info(t)
+            src_hash_short = src_info["hash"][:8] if src_info["hash"] else "N/A"
+            tgt_hash_short = tgt_info["hash"][:8] if tgt_info["hash"] else "N/A"
+            table.add_row(
+                t.name,
+                src_info["size_str"],
+                tgt_info["size_str"],
+                src_info["dimensions_str"],
+                tgt_info["dimensions_str"],
+                src_hash_short,
+                tgt_hash_short,
+            )
+
+        if len(overwrite_pairs) > 15:
+            table.add_row(f"... 还有 {len(overwrite_pairs) - 15} 个", "", "", "", "", "", "")
+
+        console.print(table)
+
+    if new_pairs:
+        click.echo()
+        table = Table(title=f"\u5373\u5c06\u65b0\u589e ({will_create} 个)")
+        table.add_column("新文件名", style="green", overflow="fold")
+        table.add_column("源大小", style="cyan", justify="right")
+        table.add_column("源尺寸", style="cyan", justify="right")
+        table.add_column("源哈希", style="cyan")
+
+        for s, t in new_pairs[:15]:
+            src_info = get_file_info(s)
+            src_hash_short = src_info["hash"][:8] if src_info["hash"] else "N/A"
+            table.add_row(
+                t.name,
+                src_info["size_str"],
+                src_info["dimensions_str"],
+                src_hash_short,
+            )
+
+        if len(new_pairs) > 15:
+            table.add_row(f"... 还有 {len(new_pairs) - 15} 个", "", "", "")
+
+        console.print(table)
+
+    if same_pairs:
+        click.echo()
+        click.echo(click.style(f"  {no_change} 个文件名称不变，跳过处理", fg="yellow"))
+
+    click.echo()
+    click.echo(click.style("Dry-Run 模式 - 仅读取文件信息，不做任何修改", fg="yellow"))
+    click.echo(click.style("  确认无误后，去掉 --dry-run 即可执行实际操作", fg="cyan"))
+
+
 def _show_results(results: dict):
     click.echo()
-    table = Table(title="重命名结果")
-    table.add_column("统计项", style="cyan")
-    table.add_column("数量", style="green", justify="right")
+    table = Table(title="\u91cd\u547d\u540d\u7ed3\u679c")
+    table.add_column("\u7edf\u8ba1\u9879", style="cyan")
+    table.add_column("\u6570\u91cf", style="green", justify="right")
 
     for key, value in results["summary"].items():
         table.add_row(key, str(value))
 
     console.print(table)
 
-    success_count = results["summary"].get("成功", 0)
-    if success_count > 0:
-        click.echo(click.style(f"\n✓ 成功重命名 {success_count} 个文件", fg="green"))
+    generated = results["summary"].get("\u65b0\u589e", 0)
+    overwritten = results["summary"].get("\u8986\u76d6", 0)
+    total_success = generated + overwritten
+    if total_success > 0:
+        parts = []
+        if generated > 0:
+            parts.append(f"\u65b0\u589e {generated} \u4e2a")
+        if overwritten > 0:
+            parts.append(f"\u8986\u76d6 {overwritten} \u4e2a")
+        click.echo(click.style(f"\n\u2713 \u6210\u529f\u91cd\u547d\u540d {total_success} \u4e2a\u6587\u4ef6\uff08{', '.join(parts)}\uff09", fg="green"))
     else:
-        click.echo(click.style("\n✗ 没有文件被重命名", fg="yellow"))
+        click.echo(click.style("\n\u2717 \u6ca1\u6709\u6587\u4ef6\u88ab\u91cd\u547d\u540d", fg="yellow"))
 
 
 def _save_rename_history(project_root: Path, renamed_files: list):

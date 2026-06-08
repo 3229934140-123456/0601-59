@@ -1,0 +1,33 @@
+{
+  "session_id": "20260608_190301",
+  "start_time": "2026-06-08T19:03:01.590429",
+  "end_time": "2026-06-08T19:03:01.599592",
+  "command": "import",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:01.596847",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_skip\\import_src\\icon.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_skip\\assets\\images\\default\\icon.png",
+      "status": "generated",
+      "details": "复制成功: D:\\trae-bz\\TraeProjects\\59\\t_import_skip\\import_src\\icon.png -> D:\\trae-bz\\TraeProjects\\59\\t_import_skip\\assets\\images\\default\\icon.png"
+    },
+    {
+      "timestamp": "2026-06-08T19:03:01.597634",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_skip\\import_src\\logo.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_skip\\assets\\images\\default\\logo.png",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 0,
+    "failed": 0,
+    "skipped": 1,
+    "generated": 1
+  }
+}

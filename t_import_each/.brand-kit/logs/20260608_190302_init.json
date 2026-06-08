@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_190302",
+  "start_time": "2026-06-08T19:03:02.425663",
+  "end_time": "2026-06-08T19:03:02.425663",
+  "command": "init",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:02.425663",
+      "command": "init",
+      "action": "init",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_each",
+      "target": "",
+      "status": "success",
+      "details": "项目 'test' 初始化完成，模板: default"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

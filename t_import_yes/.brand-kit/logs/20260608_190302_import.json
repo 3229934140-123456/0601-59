@@ -1,0 +1,34 @@
+{
+  "session_id": "20260608_190302",
+  "start_time": "2026-06-08T19:03:02.130469",
+  "end_time": "2026-06-08T19:03:02.140316",
+  "command": "import",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:02.136403",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\import_src\\icon.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\assets\\images\\default\\icon.png",
+      "status": "generated",
+      "details": "复制成功: D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\import_src\\icon.png -> D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\assets\\images\\default\\icon.png"
+    },
+    {
+      "timestamp": "2026-06-08T19:03:02.137770",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\import_src\\logo.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\assets\\images\\default\\logo.png",
+      "status": "overwritten",
+      "details": "复制成功: D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\import_src\\logo.png -> D:\\trae-bz\\TraeProjects\\59\\t_import_yes\\assets\\images\\default\\logo.png"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "success": 0,
+    "failed": 0,
+    "skipped": 0,
+    "generated": 1,
+    "overwritten": 1
+  }
+}

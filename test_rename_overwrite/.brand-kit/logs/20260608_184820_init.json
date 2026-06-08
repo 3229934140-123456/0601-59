@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_184820",
+  "start_time": "2026-06-08T18:48:20.020716",
+  "end_time": "2026-06-08T18:48:20.020716",
+  "command": "init",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T18:48:20.020716",
+      "command": "init",
+      "action": "init",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\test_rename_overwrite",
+      "target": "",
+      "status": "success",
+      "details": "项目 'my_project' 初始化完成，模板: default"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

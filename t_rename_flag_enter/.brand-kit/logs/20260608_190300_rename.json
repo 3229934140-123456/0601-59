@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_190300",
+  "start_time": "2026-06-08T19:03:00.413621",
+  "end_time": "2026-06-08T19:03:00.419447",
+  "command": "rename",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:00.417425",
+      "command": "rename",
+      "action": "rename",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_rename_flag_enter\\assets\\images\\a.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_rename_flag_enter\\assets\\images\\b.png",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 0,
+    "failed": 0,
+    "skipped": 1
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "session_id": "20260608_190304",
+  "start_time": "2026-06-08T19:03:04.936038",
+  "end_time": "2026-06-08T19:03:04.950410",
+  "command": "resize",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:04.945353",
+      "command": "resize",
+      "action": "resize",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_resize_yes\\assets\\images\\photo.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_resize_yes\\output\\resized\\default\\photo_50x50.png",
+      "status": "overwritten",
+      "details": "200x200 -> 50x50"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 0,
+    "failed": 0,
+    "skipped": 0,
+    "overwritten": 1
+  }
+}

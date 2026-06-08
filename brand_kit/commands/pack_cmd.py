@@ -73,12 +73,13 @@ MANIFEST_TEMPLATE = """# 交付清单
 @click.option("--include-config", is_flag=True, help="包含配置文件")
 @click.option("--include-readme/--no-include-readme", default=True, help="包含README")
 @click.option("--preview", is_flag=True, help="预览模式")
+@click.option("--dry-run", "dry_run", is_flag=True, help="对比模式，展示详细信息但不执行")
 @click.option("--overwrite", is_flag=True, help="覆盖已存在文件")
 @click.option("--report", is_flag=True, help="生成复核报告")
 @pass_brand
 def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
              manifest, manifest_format, copyright_text, include_config,
-             include_readme, preview, overwrite, report):
+             include_readme, preview, dry_run, overwrite, report):
     """生成交付包和清单"""
     project_root = brand["project_root"]
     config = brand["config"]
@@ -121,17 +122,10 @@ def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
                       output_dir, package_path, overwrite)
         return
 
-    if package_path.exists():
-        confirmed = confirm_overwrite(
-            [(Path("source"), package_path)],
-            auto_confirm=overwrite,
-            show_target_paths=True
-        )
-        if not confirmed:
-            click.echo(click.style("已取消，跳过生成交付包", fg="cyan"))
-            return
-
-    logger.start_session("pack")
+    if dry_run:
+        _show_dry_run(files, file_counts, total_size, package_name, pack_format,
+                      output_dir, package_path)
+        return
 
     results = {
         "items": [],
@@ -141,12 +135,29 @@ def pack_cmd(brand, source, output, name, pack_format, theme, file_type,
             "字体": file_counts.get("font", 0),
             "图标": file_counts.get("icon", 0),
             "总大小": format_size(total_size),
+            "状态": "新增",
         },
     }
+
+    if package_path.exists():
+        confirmed = confirm_overwrite(
+            [(Path("source"), package_path)],
+            auto_confirm=overwrite,
+            show_target_paths=True
+        )
+        if not confirmed:
+            results["summary"]["状态"] = "跳过"
+            results["summary"]["跳过原因"] = "用户未确认覆盖"
+            _show_results(results, package_path)
+            return
+
+    logger.start_session("pack")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     confirmed_overwrite = package_path.exists()
+    if confirmed_overwrite:
+        results["summary"]["状态"] = "覆盖"
 
     if pack_format == "dir":
         _pack_to_directory(files, source_path, package_path, confirmed_overwrite,
@@ -581,6 +592,52 @@ def _show_preview(files: List[Path], counts: dict, total_size: int,
     click.echo(click.style("\n预览模式 - 不会实际生成交付包", fg="yellow"))
 
 
+def _show_dry_run(files: List[Path], counts: dict, total_size: int,
+                  package_name: str, pack_format: str, output_dir: Path,
+                  package_path: Path):
+    click.echo()
+    click.echo(click.style("=== Dry-Run 对比模式 ===", fg="cyan", bold=True))
+
+    table = Table(title="\u4ea4\u4ed8\u5305\u4fe1\u606f")
+    table.add_column("项目", style="cyan")
+    table.add_column("内容", style="green")
+
+    table.add_row("交付包名称", package_name)
+    table.add_row("打包格式", pack_format)
+    table.add_row("文件总数", str(len(files)))
+    table.add_row("预计总大小", format_size(total_size))
+    table.add_row("图片文件", str(counts.get("image", 0)))
+    table.add_row("字体文件", str(counts.get("font", 0)))
+    table.add_row("图标文件", str(counts.get("icon", 0)))
+    table.add_row("输出目录", str(output_dir))
+    table.add_row("完整路径", str(package_path))
+
+    if package_path.exists():
+        pkg_size = format_size(package_path.stat().st_size)
+        table.add_row("现有包大小", pkg_size)
+        table.add_row("操作类型", "覆盖")
+    else:
+        table.add_row("操作类型", "新增")
+
+    console.print(table)
+
+    if len(files) <= 20:
+        click.echo("\n包含文件:")
+        for f in files[:20]:
+            fsize = format_size(f.stat().st_size)
+            click.echo(f"  - {f.name} ({fsize})")
+    else:
+        click.echo(f"\n包含 {len(files)} 个文件（前 20 个）:")
+        for f in files[:20]:
+            fsize = format_size(f.stat().st_size)
+            click.echo(f"  - {f.name} ({fsize})")
+        click.echo(f"  ... 还有 {len(files) - 20} 个文件")
+
+    click.echo()
+    click.echo(click.style("Dry-Run 模式 - 仅读取文件信息，不生成交付包", fg="yellow"))
+    click.echo(click.style("  确认无误后，去掉 --dry-run 即可执行实际操作", fg="cyan"))
+
+
 def _show_results(results: dict, package_path: Path):
     click.echo()
     table = Table(title="打包结果")
@@ -593,8 +650,11 @@ def _show_results(results: dict, package_path: Path):
     console.print(table)
     click.echo(f"\n交付包位置: {package_path}")
 
-    success = sum(1 for item in results["items"] if item["status"] == "success")
-    if success > 0:
+    status = results["summary"].get("状态", "新增")
+    success = sum(1 for item in results["items"] if item.get("status") in ("success", "generated", "overwritten"))
+    if status == "跳过":
+        click.echo(click.style("\n⊘ 已跳过，未生成交付包", fg="yellow"))
+    elif success > 0:
         click.echo(click.style(f"\n✓ 成功打包 {success} 个文件", fg="green"))
     else:
         click.echo(click.style("\n✗ 打包失败", fg="red"))

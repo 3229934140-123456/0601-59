@@ -1,0 +1,42 @@
+{
+  "session_id": "20260608_190302",
+  "start_time": "2026-06-08T19:03:02.701341",
+  "end_time": "2026-06-08T19:03:02.708849",
+  "command": "import",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:02.705820",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_each\\import_src\\img1.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_each\\assets\\images\\default\\img1.png",
+      "status": "overwritten",
+      "details": "复制成功: D:\\trae-bz\\TraeProjects\\59\\t_import_each\\import_src\\img1.png -> D:\\trae-bz\\TraeProjects\\59\\t_import_each\\assets\\images\\default\\img1.png"
+    },
+    {
+      "timestamp": "2026-06-08T19:03:02.706771",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_each\\import_src\\img2.jpg",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_each\\assets\\images\\default\\img2.jpg",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    },
+    {
+      "timestamp": "2026-06-08T19:03:02.707322",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_each\\import_src\\img3.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_each\\assets\\images\\default\\img3.png",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "success": 0,
+    "failed": 0,
+    "skipped": 2,
+    "overwritten": 1
+  }
+}

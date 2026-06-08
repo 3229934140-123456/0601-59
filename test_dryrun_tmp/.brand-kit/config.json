@@ -1,0 +1,104 @@
+{
+  "project_name": "test",
+  "image_formats": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".bmp",
+    ".tiff"
+  ],
+  "font_formats": [
+    ".ttf",
+    ".otf",
+    ".woff",
+    ".woff2"
+  ],
+  "icon_formats": [
+    ".svg",
+    ".png",
+    ".ico"
+  ],
+  "naming_pattern": "{theme}_{name}_{index:03d}",
+  "resize_sizes": {
+    "icon": [
+      [
+        16,
+        16
+      ],
+      [
+        32,
+        32
+      ],
+      [
+        48,
+        48
+      ],
+      [
+        64,
+        64
+      ],
+      [
+        128,
+        128
+      ],
+      [
+        256,
+        256
+      ],
+      [
+        512,
+        512
+      ]
+    ],
+    "banner": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        768,
+        432
+      ]
+    ],
+    "thumbnail": [
+      [
+        400,
+        300
+      ],
+      [
+        200,
+        150
+      ]
+    ],
+    "square": [
+      [
+        800,
+        800
+      ],
+      [
+        400,
+        400
+      ],
+      [
+        200,
+        200
+      ]
+    ]
+  },
+  "min_resolution": [
+    1024,
+    768
+  ],
+  "copyright_text": "",
+  "themes": [
+    "default"
+  ],
+  "palette_colors": 6
+}

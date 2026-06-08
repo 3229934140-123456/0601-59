@@ -15,6 +15,7 @@ from brand_kit.utils import (
     format_size,
     confirm_overwrite,
     check_overwrites,
+    get_file_info,
 )
 
 console = Console()
@@ -70,13 +71,14 @@ RESAMPLE_METHODS = {
 @click.option("--suffix/--no-suffix", default=True, help="文件名添加尺寸后缀")
 @click.option("--recursive/--no-recursive", default=True, help="递归处理子目录")
 @click.option("--preview", is_flag=True, help="预览模式")
+@click.option("--dry-run", "dry_run", is_flag=True, help="对比模式，展示详细差异但不执行")
 @click.option("--overwrite", is_flag=True, help="覆盖已存在的文件")
 @click.option("--copyright", "copyright_text", default="", help="版权说明")
 @click.option("--report", is_flag=True, help="生成复核报告")
 @pass_brand
 def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
                quality, method, fit, background, suffix, recursive,
-               preview, overwrite, copyright_text, report):
+               preview, dry_run, overwrite, copyright_text, report):
     """批量输出多尺寸图片"""
     project_root = brand["project_root"]
     config = brand["config"]
@@ -123,6 +125,10 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
         _show_preview(output_pairs, output_dir, output_format, fit, overwrite)
         return
 
+    if dry_run:
+        _show_dry_run(output_pairs, output_dir, target_sizes)
+        return
+
     overwrite_check = [(Path("dummy"), t) for _, t, _, _, _ in output_pairs]
     overwrite_pairs = check_overwrites(overwrite_check)
     if overwrite_pairs:
@@ -138,7 +144,8 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
         "summary": {
             "源图片": len(files),
             "目标尺寸": len(target_sizes),
-            "生成文件": 0,
+            "新增": 0,
+            "覆盖": 0,
             "跳过": 0,
             "失败": 0,
         },
@@ -166,14 +173,17 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
                     current_img_path = img_path
                     original_size = current_img.size
 
-                if out_path.exists():
+                is_overwrite = out_path.exists()
+                if is_overwrite:
                     if str(out_path) not in confirmed_targets:
                         results["items"].append({
+                            "source": img_path.name,
+                            "target": out_path.name,
                             "name": out_path.name,
                             "type": "image",
                             "size": format_size(out_path.stat().st_size),
                             "status": "skipped",
-                            "notes": "文件已存在，未确认覆盖",
+                            "notes": "\u6587\u4ef6\u5df2\u5b58\u5728\uff0c\u672a\u786e\u8ba4\u8986\u76d6",
                         })
                         results["summary"]["跳过"] += 1
                         logger.log_action(
@@ -186,26 +196,32 @@ def resize_cmd(brand, source, sizes, preset, output, theme, output_format,
                 resized_img = _resize_image(current_img, target_w, target_h, fit, background, resample)
                 _save_image(resized_img, out_path, output_format, quality, copyright_text)
 
+                status = "overwritten" if is_overwrite else "generated"
+                status_key = "\u8986\u76d6" if is_overwrite else "\u65b0\u589e"
                 results["items"].append({
+                    "source": img_path.name,
+                    "target": out_path.name,
                     "name": out_path.name,
                     "type": "image",
                     "size": f"{target_w}x{target_h}",
-                    "status": "success",
+                    "status": status,
                     "notes": f"{format_size(out_path.stat().st_size)}",
                 })
-                results["summary"]["生成文件"] += 1
+                results["summary"][status_key] += 1
 
                 logger.log_action(
                     "resize", str(img_path), str(out_path),
-                    status="success",
+                    status=status,
                     details=f"{original_size[0]}x{original_size[1]} -> {target_w}x{target_h}"
                 )
             except Exception as e:
                 results["items"].append({
+                    "source": img_path.name if 'img_path' in dir() else "",
+                    "target": f"{target_w}x{target_h}",
                     "name": f"{img_path.name} ({target_w}x{target_h})",
                     "type": "image",
                     "size": "N/A",
-                    "status": "error",
+                    "status": "failed",
                     "notes": str(e),
                 })
                 results["summary"]["失败"] += 1
@@ -407,11 +423,100 @@ def _show_preview(output_pairs: list, output_dir: Path, output_format: str,
     click.echo(click.style("\n预览模式 - 不会实际生成文件，磁盘文件保持不变", fg="yellow"))
 
 
+def _show_dry_run(output_pairs: list, output_dir: Path, target_sizes: list):
+    overwrite_pairs = [(s, t, w, h) for s, t, _, w, h in output_pairs if t.exists()]
+    new_pairs = [(s, t, w, h) for s, t, _, w, h in output_pairs if not t.exists()]
+
+    total = len(output_pairs)
+    will_overwrite = len(overwrite_pairs)
+    will_create = len(new_pairs)
+
+    files_set = {s.name for s, _, _, _, _ in output_pairs}
+
+    click.echo()
+    click.echo(click.style("=== Dry-Run 对比模式 ===", fg="cyan", bold=True))
+    click.echo(f"源图片: {len(files_set)} 张，目标尺寸: {len(target_sizes)} 种")
+    click.echo(f"总计 {total} 个输出文件："
+               f"新增 {will_create} 个，覆盖 {will_overwrite} 个")
+    click.echo(f"输出目录: {output_dir}")
+
+    if overwrite_pairs:
+        click.echo()
+        table = Table(title=f"\u5373\u5c06\u8986\u76d6 ({will_overwrite} 个)")
+        table.add_column("目标文件", style="yellow", overflow="fold")
+        table.add_column("目标尺寸", style="green", justify="right")
+        table.add_column("源大小", style="cyan", justify="right")
+        table.add_column("目标大小", style="magenta", justify="right")
+        table.add_column("源尺寸", style="cyan", justify="right")
+        table.add_column("目标尺寸(实际)", style="magenta", justify="right")
+        table.add_column("源哈希", style="cyan")
+        table.add_column("目标哈希", style="magenta")
+
+        for s, t, w, h in overwrite_pairs[:15]:
+            src_info = get_file_info(s)
+            tgt_info = get_file_info(t)
+            src_hash_short = src_info["hash"][:8] if src_info["hash"] else "N/A"
+            tgt_hash_short = tgt_info["hash"][:8] if tgt_info["hash"] else "N/A"
+            table.add_row(
+                t.name,
+                f"{w}x{h}",
+                src_info["size_str"],
+                tgt_info["size_str"],
+                src_info["dimensions_str"],
+                tgt_info["dimensions_str"],
+                src_hash_short,
+                tgt_hash_short,
+            )
+
+        if len(overwrite_pairs) > 15:
+            table.add_row(f"... 还有 {len(overwrite_pairs) - 15} 个", "", "", "", "", "", "", "")
+
+        console.print(table)
+
+    if new_pairs:
+        click.echo()
+        table = Table(title=f"\u5373\u5c06\u65b0\u589e ({will_create} 个)")
+        table.add_column("新文件名", style="green", overflow="fold")
+        table.add_column("目标尺寸", style="green", justify="right")
+        table.add_column("源大小", style="cyan", justify="right")
+        table.add_column("源尺寸", style="cyan", justify="right")
+        table.add_column("源哈希", style="cyan")
+
+        seen = set()
+        rows = []
+        for s, t, w, h in new_pairs:
+            key = (s.name, w, h)
+            if key in seen:
+                continue
+            seen.add(key)
+            src_info = get_file_info(s)
+            src_hash_short = src_info["hash"][:8] if src_info["hash"] else "N/A"
+            rows.append((
+                t.name,
+                f"{w}x{h}",
+                src_info["size_str"],
+                src_info["dimensions_str"],
+                src_hash_short,
+            ))
+
+        for row in rows[:15]:
+            table.add_row(*row)
+
+        if len(rows) > 15:
+            table.add_row(f"... 还有 {len(rows) - 15} 个", "", "", "", "")
+
+        console.print(table)
+
+    click.echo()
+    click.echo(click.style("Dry-Run 模式 - 仅读取文件信息，不生成任何输出", fg="yellow"))
+    click.echo(click.style("  确认无误后，去掉 --dry-run 即可执行实际操作", fg="cyan"))
+
+
 def _show_results(results: dict, output_dir: Path):
     click.echo()
-    table = Table(title="批量调整结果")
-    table.add_column("统计项", style="cyan")
-    table.add_column("数量", style="green", justify="right")
+    table = Table(title="\u6279\u91cf\u8c03\u6574\u7ed3\u679c")
+    table.add_column("\u7edf\u8ba1\u9879", style="cyan")
+    table.add_column("\u6570\u91cf", style="green", justify="right")
 
     for key, value in results["summary"].items():
         table.add_row(key, str(value))
@@ -419,8 +524,15 @@ def _show_results(results: dict, output_dir: Path):
     console.print(table)
     click.echo(f"\n输出目录: {output_dir}")
 
-    success_count = results["summary"].get("生成文件", 0)
-    if success_count > 0:
-        click.echo(click.style(f"\n✓ 成功生成 {success_count} 个文件", fg="green"))
+    generated = results["summary"].get("\u65b0\u589e", 0)
+    overwritten = results["summary"].get("\u8986\u76d6", 0)
+    total_success = generated + overwritten
+    if total_success > 0:
+        parts = []
+        if generated > 0:
+            parts.append(f"\u65b0\u589e {generated} \u4e2a")
+        if overwritten > 0:
+            parts.append(f"\u8986\u76d6 {overwritten} \u4e2a")
+        click.echo(click.style(f"\n\u2713 \u6210\u529f\u751f\u6210 {total_success} \u4e2a\u6587\u4ef6\uff08{', '.join(parts)}\uff09", fg="green"))
     else:
-        click.echo(click.style("\n✗ 没有生成文件", fg="yellow"))
+        click.echo(click.style("\n\u2717 \u6ca1\u6709\u751f\u6210\u6587\u4ef6", fg="yellow"))

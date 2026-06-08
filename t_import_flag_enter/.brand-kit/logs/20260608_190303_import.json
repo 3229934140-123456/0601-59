@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_190303",
+  "start_time": "2026-06-08T19:03:03.263340",
+  "end_time": "2026-06-08T19:03:03.268515",
+  "command": "import",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:03.266422",
+      "command": "import",
+      "action": "import",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_import_flag_enter\\import_src\\logo.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_import_flag_enter\\assets\\images\\default\\logo.png",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 0,
+    "failed": 0,
+    "skipped": 1
+  }
+}

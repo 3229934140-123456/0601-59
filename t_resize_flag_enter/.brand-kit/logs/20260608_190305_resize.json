@@ -1,0 +1,23 @@
+{
+  "session_id": "20260608_190305",
+  "start_time": "2026-06-08T19:03:05.496156",
+  "end_time": "2026-06-08T19:03:05.508699",
+  "command": "resize",
+  "entries": [
+    {
+      "timestamp": "2026-06-08T19:03:05.506762",
+      "command": "resize",
+      "action": "resize",
+      "source": "D:\\trae-bz\\TraeProjects\\59\\t_resize_flag_enter\\assets\\images\\photo.png",
+      "target": "D:\\trae-bz\\TraeProjects\\59\\t_resize_flag_enter\\output\\resized\\default\\photo_50x50.png",
+      "status": "skipped",
+      "details": "目标文件已存在，未确认覆盖"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "success": 0,
+    "failed": 0,
+    "skipped": 1
+  }
+}

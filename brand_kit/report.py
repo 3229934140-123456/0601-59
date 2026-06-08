@@ -5,6 +5,20 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 
+STATUS_LABELS = {
+    "generated": "\u65b0\u589e",
+    "overwritten": "\u8986\u76d6",
+    "skipped": "\u8df3\u8fc7",
+    "failed": "\u5931\u8d25",
+    "success": "\u6210\u529f",
+    "error": "\u9519\u8bef",
+}
+
+
+def _get_status_label(status: str) -> str:
+    return STATUS_LABELS.get(status, status)
+
+
 class ReportGenerator:
     def __init__(self, project_dir: Path):
         self.project_dir = Path(project_dir)
@@ -34,13 +48,20 @@ class ReportGenerator:
         items_html = ""
         for item in items:
             status = item.get("status", "unknown")
+            status_label = _get_status_label(status)
             status_class = f"status-{status}"
+            source = item.get("source", "")
+            target = item.get("target", "")
+            name_display = item.get("name", target or source or "")
+            if source and target and source != target:
+                name_display = f"{source} &rarr; {target}"
+
             items_html += f"""
             <tr class="{status_class}">
-                <td>{item.get('name', '')}</td>
+                <td>{name_display}</td>
                 <td>{item.get('type', '')}</td>
                 <td>{item.get('size', '')}</td>
-                <td><span class="status-badge {status_class}">{status}</span></td>
+                <td><span class="status-badge {status_class}">{status_label}</span></td>
                 <td>{item.get('notes', '')}</td>
             </tr>
             """
@@ -148,17 +169,25 @@ class ReportGenerator:
             font-size: 12px;
             font-weight: 500;
         }}
-        .status-success {{
+        .status-generated, .status-success {{
             background: #d4edda;
             color: #155724;
+        }}
+        .status-overwritten {{
+            background: #fff3cd;
+            color: #856404;
+        }}
+        .status-skipped {{
+            background: #d1ecf1;
+            color: #0c5460;
+        }}
+        .status-failed, .status-error {{
+            background: #f8d7da;
+            color: #721c24;
         }}
         .status-warning {{
             background: #fff3cd;
             color: #856404;
-        }}
-        .status-error {{
-            background: #f8d7da;
-            color: #721c24;
         }}
         .status-info {{
             background: #d1ecf1;
@@ -190,7 +219,7 @@ class ReportGenerator:
             <table>
                 <thead>
                     <tr>
-                        <th>文件名</th>
+                        <th>文件</th>
                         <th>类型</th>
                         <th>大小</th>
                         <th>状态</th>

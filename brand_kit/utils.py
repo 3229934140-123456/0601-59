@@ -140,7 +140,7 @@ def confirm_overwrite(files_to_overwrite: List[Tuple[Path, Path]],
     total = len(files_to_overwrite)
 
     click.echo(click.style(
-        f"\n⚠  以下 {total} 个目标文件已存在，将被覆盖:",
+        f"\n\u26a0  发现 {total} 个目标文件已存在:",
         fg="yellow", bold=True
     ))
 
@@ -151,23 +151,57 @@ def confirm_overwrite(files_to_overwrite: List[Tuple[Path, Path]],
 
     if total > 20:
         remaining = total - 20
-        click.echo(f"  ... 还有 {remaining} 个文件将被覆盖")
+        click.echo(f"  ... 还有 {remaining} 个文件")
 
     if auto_confirm:
         click.echo(click.style(
-            f"\n已设置 --overwrite，将自动覆盖以上 {total} 个文件",
+            "\n已设置 --overwrite 模式（直接回车仍按跳过处理）",
             fg="cyan"
         ))
-        if not click.confirm("是否继续？", default=True):
-            click.echo(click.style("已取消，所有将跳过所有文件", fg="cyan"))
+
+    click.echo()
+    click.echo("请选择处理方式:")
+    click.echo("  [a] 全部覆盖")
+    click.echo("  [s] 全部跳过 (默认, 直接回车)")
+    click.echo("  [i] 逐个确认")
+
+    while True:
+        choice = click.prompt("请选择", default="s", show_default=False).strip().lower()
+        if not choice or choice in ("s", "skip", "n", "no"):
+            click.echo(click.style("\u2139 已全部跳过", fg="cyan"))
             return []
-        return files_to_overwrite
+        elif choice in ("a", "all", "y", "yes"):
+            click.echo(click.style(f"\u2713 将覆盖全部 {total} 个文件", fg="yellow"))
+            return files_to_overwrite
+        elif choice in ("i", "interactive", "each"):
+            return _confirm_overwrite_each(files_to_overwrite, show_target_paths)
+        else:
+            click.echo(click.style("  无效输入，请输入 a / s / i", fg="red"))
 
-    if not click.confirm("\n是否确认覆盖这些文件？(直接回车默认跳过)", default=False):
-        click.echo(click.style("已取消，将跳过所有将被覆盖的文件", fg="cyan"))
-        return []
 
-    return files_to_overwrite
+def _confirm_overwrite_each(files_to_overwrite: List[Tuple[Path, Path]],
+                            show_target_paths: bool = False) -> List[Tuple[Path, Path]]:
+    import click
+
+    confirmed = []
+    total = len(files_to_overwrite)
+
+    click.echo(click.style(
+        f"\n逐个确认 ({total} 个文件，直接回车=跳过):",
+        fg="yellow"
+    ))
+
+    for i, (source, target) in enumerate(files_to_overwrite, 1):
+        show = str(target) if show_target_paths else target.name
+        click.echo(f"\n  [{i}/{total}] {show}")
+        if not click.confirm("    覆盖?", default=False):
+            click.echo("    \u2192 跳过")
+            continue
+        confirmed.append((source, target))
+        click.echo("    \u2192 覆盖")
+
+    click.echo(click.style(f"\n\u2713 已确认覆盖 {len(confirmed)} 个文件", fg="yellow"))
+    return confirmed
 
 
 def check_overwrites(source_target_pairs: List[Tuple[Path, Path]]) -> List[Tuple[Path, Path]]:
@@ -208,3 +242,45 @@ def is_image_file(file_path: Path, base_dir: Path = None) -> bool:
 
 def is_font_file(file_path: Path) -> bool:
     return file_path.suffix.lower() in FONT_EXTENSIONS
+
+
+def get_image_size(file_path: Path) -> Optional[Tuple[int, int]]:
+    if not is_image_file(file_path):
+        return None
+    try:
+        from PIL import Image
+        with Image.open(file_path) as img:
+            return img.size
+    except Exception:
+        return None
+
+
+def get_file_info(file_path: Path) -> dict:
+    info = {
+        "path": str(file_path),
+        "name": file_path.name,
+        "exists": file_path.exists(),
+        "size": 0,
+        "size_str": "N/A",
+        "hash": None,
+        "dimensions": None,
+        "dimensions_str": "N/A",
+    }
+    if not file_path.exists():
+        return info
+
+    stat = file_path.stat()
+    info["size"] = stat.st_size
+    info["size_str"] = format_size(stat.st_size)
+
+    try:
+        info["hash"] = get_file_hash(file_path)
+    except Exception:
+        pass
+
+    dims = get_image_size(file_path)
+    if dims:
+        info["dimensions"] = dims
+        info["dimensions_str"] = f"{dims[0]}x{dims[1]}"
+
+    return info
